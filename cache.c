@@ -48,6 +48,52 @@ void set_cache_param(param, value)
 void init_cache()
 {
   /* initialize the cache, and cache statistics data structures */
+
+  //Initialize the caches - depending on the number of cores present
+  //All core caches are identical
+  int n_blocks, n_sets, mask_size, block_offset, mask, i, j;
+
+  n_blocks = cache_usize/cache_block_size;
+  n_sets = n_blocks/cache_assoc;
+  block_offset = LOG2(cache_block_size);
+  mask_size = n_sets + block_offset;
+  mask = (1<<mask_size) - 1;
+  for(i = 0; i < num_core; i++)
+  {
+     mesi_cache[i].id = i;
+     mesi_cache[i].size = cache_usize;
+     mesi_cache[i].associativity = cache_assoc;
+     mesi_cache[i].n_sets = n_sets;
+     mesi_cache[i].index_mask = mask;
+     mesi_cache[i].index_mask_offset = block_offset;
+  }
+
+  //Dynamically allocating memory for LRU head, LRU tail and contents arrays
+  for(i = 0; i < num_core; i++)
+  {
+     mesi_cache[i].LRU_head = (Pcache_line*)malloc(sizeof(Pcache_line)*mesi_cache[i].n_sets);
+     mesi_cache[i].LRU_tail = (Pcache_line*)malloc(sizeof(Pcache_line)*mesi_cache[i].n_sets);
+     mesi_cache[i].set_contents = (int*)malloc(sizeof(int)*mesi_cache[i].n_sets);
+  }
+
+  //Checking if memory is allocated properly or not
+  for(i = 0; i < num_core; i++)
+  {
+     if(mesi_cache[i].LRU_head == NULL || mesi_cache[i].LRU_tail == NULL || mesi_cache[i].set_contents == NULL)
+        {printf("error : Memory allocation failed for mesi_cache[%d] LRU_head, LRU_tail\n", i); exit(-1);}
+
+  }
+
+  //Initializing set_contents
+  for(i = 0; i < num_core; i++)
+  {
+     for(j = 0; j < mesi_cache[i].n_sets; j++)
+     {
+        mesi_cache[i].set_contents[j] = 0;
+        mesi_cache[i].LRU_head[j] = (Pcache_line)NULL;
+        mesi_cache[i].LRU_tail[j] = (Pcache_line)NULL;
+     }
+  }
 }
 /************************************************************/
 

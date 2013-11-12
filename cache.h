@@ -53,8 +53,8 @@ void set_cache_param();
 void init_cache();
 void perform_access();
 void flush();
-void delete();
-void insert();
+void delete(Pcache_line *, Pcache_line *, Pcache_line);
+void insert(Pcache_line *, Pcache_line *, Pcache_line);
 void dump_settings();
 void print_stats();
 

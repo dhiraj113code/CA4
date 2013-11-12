@@ -102,6 +102,12 @@ void perform_access(addr, access_type, pid)
      unsigned addr, access_type, pid;
 {
   /* handle accesses to the mesi caches */
+int mask_size;
+unsigned int index, tag;
+Pcache_line c_line, hitAt;
+mask_size = LOG2(c1.n_sets) + c1.index_mask_offset;
+index = (addr & c1.index_mask) >> c1.index_mask_offset;
+tag = addr >> mask_size;
 }
 /************************************************************/
 
@@ -113,9 +119,7 @@ void flush()
 /************************************************************/
 
 /************************************************************/
-void delete(head, tail, item)
-  Pcache_line *head, *tail;
-  Pcache_line item;
+void delete(Pcache_line *head, Pcache_line *tail, Pcache_line item)
 {
   if (item->LRU_prev) {
     item->LRU_prev->LRU_next = item->LRU_next;
@@ -135,9 +139,7 @@ void delete(head, tail, item)
 
 /************************************************************/
 /* inserts at the head of the list */
-void insert(head, tail, item)
-  Pcache_line *head, *tail;
-  Pcache_line item;
+void insert(Pcache_line *head, Pcache_line *tail, Pcache_line item)
 {
   item->LRU_next = *head;
   item->LRU_prev = (Pcache_line)NULL;

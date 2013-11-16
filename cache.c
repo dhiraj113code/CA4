@@ -326,6 +326,42 @@ else return FALSE;
 
 void mesiStateTransition(Pcache_line c_line, unsigned whatHappened)
 {
+   unsigned current_state;
+   if(c_line == NULL)
+   {
+      printf("error_info : mesiStateTransition funciton called on an unallocated cache line\n");
+      exit(-1);
+   }
+   else
+   {
+      switch(whatHappened)
+      {
+         case REMOTE_READ_MISS:
+            current_state  = c_line->state;
+            switch(current_state)
+            {
+               case INVALID_STATE:
+                  printf("error_info : mesiStateTransition function called on a invalid state\n");
+                  exit(-1);
+                  break;
+               case EXCLUSIVE_STATE:
+               case MODIFIED_STATE:
+                  c_line->state = SHARED_STATE;
+                  break;
+               case SHARED_STATE:
+                  break;
+               default:
+                  printf("error_info : mesiStateTransition function called with an unknown state\n");
+                  exit(-1);
+                  break;
+            }
+            break;
+         case REMOTE_WRITE_MISS:
+            break;
+         case REMOTE_WRITE_HIT:
+            break;
+      }
+   }
 
 }
 

@@ -97,3 +97,4 @@ unsigned isReadorWrite(unsigned access_type, unsigned pid);
 int BroadcastnSearch(unsigned tag, unsigned index, unsigned broadcast_type, unsigned pid);
 void mesiStateTransition(Pcache_line c_line, unsigned whatHappened);
 int search(Pcache_line c, unsigned tag, Pcache_line *hitAt);
+void BroadcastnSetState(unsigned request_type, unsigned tag, unsigned index, unsigned pid, Pcache_line c_line);

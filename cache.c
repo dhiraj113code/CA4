@@ -138,32 +138,58 @@ mesi_cache_stat[pid].accesses++;
 if(mesi_cache[pid].LRU_head[index] == NULL) //Miss with no Replacement
 {
    mesi_cache_stat[pid].misses++;
+
    //Create the cache line
    c_line = allocateCL(tag);
+
    //Initiate broadcast and set appropriate state
-   if(request_type == READ_REQUEST)
-   {
-      if(BroadcastnSearch(tag, index, REMOTE_READ_MISS, pid)) //If data to be read present in other core caches
-      {
-         mesiStateTransition(c_line, READ_MISS_FROM_BUS);
-      }
-      else
-      {
-         mesi_cache_stat[pid].demand_fetches += cache_block_size/WORD_SIZE; //Else do a Memory fetch
-         mesiStateTransition(c_line, READ_MISS_FROM_MEMORY);
-      }
-   }
-   else if(request_type == WRITE_REQUEST)
-   {
-      BroadcastnSearch(tag, index, REMOTE_WRITE_MISS, pid);
-      mesiStateTransition(c_line, WRITE_MISS);
-   }
+   BroadcastnSetState(request_type, tag, index, pid, c_line);
+
    //Put the cache line into the cache
    insert(&mesi_cache[pid].LRU_head[index], &mesi_cache[pid].LRU_tail[index], c_line);
    mesi_cache[pid].set_contents[index]++;
 }
+else if(!search(mesi_cache[pid].LRU_head[index], tag, &hitAt))
+{
+   mesi_cache_stat[pid].misses++;
 
+   //Creating the cache_line to be inserted
+   c_line = allocateCL(tag);
+ 
+   //Initiate broadcast and set appropriate state
+   BroadcastnSetState(request_type, tag, index, pid, c_line);
 
+   if(mesi_cache[pid].set_contents[index] < mesi_cache[pid].associativity)
+   {
+      //Inserting the cache line
+      insert(&mesi_cache[pid].LRU_head[index], &mesi_cache[pid].LRU_tail[index], c_line);
+      mesi_cache[pid].set_contents[index]++;
+   }
+   else //While evicting
+   {
+      mesi_cache_stat[pid].replacements++;
+
+      //How to do eviction depending on the state. What is the dirty in mesi?
+
+      delete(&mesi_cache[pid].LRU_head[index], &mesi_cache[pid].LRU_tail[index], mesi_cache[pid].LRU_tail[index]);
+      insert(&mesi_cache[pid].LRU_head[index], &mesi_cache[pid].LRU_tail[index], c_line);
+   }
+}
+else //Hit
+{
+   //LRU Implementation on a hit
+   delete(&mesi_cache[pid].LRU_head[index], &mesi_cache[pid].LRU_tail[index], hitAt);
+   insert(&mesi_cache[pid].LRU_head[index], &mesi_cache[pid].LRU_tail[index], hitAt);
+   if(request_type == READ_REQUEST)
+   {
+      mesiStateTransition(hitAt, READ_HIT);
+   }
+   else if(request_type == WRITE_REQUEST)
+   {
+      mesiStateTransition(hitAt, WRITE_HIT);
+   }
+
+}
 }
 /************************************************************/
 
@@ -457,5 +483,27 @@ int search(Pcache_line c, unsigned tag, Pcache_line *hitAt)
          }
       }
       return FALSE;
+   }
+}
+
+
+void BroadcastnSetState(unsigned request_type, unsigned tag, unsigned index, unsigned pid, Pcache_line c_line)
+{
+   if(request_type == READ_REQUEST)
+   {
+      if(BroadcastnSearch(tag, index, REMOTE_READ_MISS, pid)) //If data to be read present in other core caches
+      {
+         mesiStateTransition(c_line, READ_MISS_FROM_BUS);
+      }
+      else
+      {
+         mesi_cache_stat[pid].demand_fetches += cache_block_size/WORD_SIZE; //Else do a Memory fetch
+         mesiStateTransition(c_line, READ_MISS_FROM_MEMORY);
+      }
+   }
+   else if(request_type == WRITE_REQUEST)
+   {
+      BroadcastnSearch(tag, index, REMOTE_WRITE_MISS, pid);
+      mesiStateTransition(c_line, WRITE_MISS);
    }
 }

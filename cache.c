@@ -17,6 +17,8 @@ static int num_core = DEFAULT_NUM_CORE;
 /* max of 8 cores */
 static cache mesi_cache[8];
 static cache_stat mesi_cache_stat[8];
+static int debug = DEFAULT_DEBUG;
+static FILE *cacheLog;
 
 /************************************************************/
 void set_cache_param(param, value)
@@ -56,8 +58,9 @@ void init_cache()
   n_blocks = cache_usize/cache_block_size;
   n_sets = n_blocks/cache_assoc;
   block_offset = LOG2(cache_block_size);
-  mask_size = n_sets + block_offset;
+  mask_size = LOG2(n_sets) + block_offset;
   mask = (1<<mask_size) - 1;
+
   for(i = 0; i < num_core; i++)
   {
      mesi_cache[i].id = i;
@@ -66,6 +69,17 @@ void init_cache()
      mesi_cache[i].n_sets = n_sets;
      mesi_cache[i].index_mask = mask;
      mesi_cache[i].index_mask_offset = block_offset;
+  }
+
+  //Printing Initialized output
+  if(debug)
+  {
+     for(i = 0; i < num_core; i++)
+     {
+        printf("-----------------Core %d------------------------------\n", i);
+        printf("number of sets = %d\nmask_size = %d\nMask = %d\nMask_offset = %d\n", mesi_cache[i].n_sets, mask_size, mesi_cache[i].index_mask, mesi_cache[i].index_mask_offset);
+        printf("-----------------------------------------------\n");
+     }
   }
 
   //Dynamically allocating memory for LRU head, LRU tail and contents arrays
@@ -94,20 +108,47 @@ void init_cache()
         mesi_cache[i].LRU_tail[j] = (Pcache_line)NULL;
      }
   }
+
+  if(debug)
+  {
+     cacheLog = fopen("cache.log", "w");
+     if(cacheLog == NULL) {printf("error : Unable to create cache.log file\n"); exit(-1);}
+  }
 }
 /************************************************************/
 
 /************************************************************/
-void perform_access(addr, access_type, pid)
-     unsigned addr, access_type, pid;
+void perform_access(unsigned addr, unsigned access_type, unsigned pid)
 {
-  /* handle accesses to the mesi caches */
+/* handle accesses to the mesi caches */
 int mask_size;
 unsigned int index, tag;
 Pcache_line c_line, hitAt;
-mask_size = LOG2(c1.n_sets) + c1.index_mask_offset;
-index = (addr & c1.index_mask) >> c1.index_mask_offset;
+
+mask_size = LOG2(mesi_cache[pid].n_sets) + mesi_cache[pid].index_mask_offset;
+index = (addr & mesi_cache[pid].index_mask) >> mesi_cache[pid].index_mask_offset;
 tag = addr >> mask_size;
+
+if(debug) fprintf(cacheLog, "debug_info : For addr = %d, tag = %d, index = %d\n", addr, tag, index);
+
+mesi_cache_stat[pid].accesses++;
+
+if(mesi_cache[pid].LRU_head[index] == NULL) //Miss with no Replacement
+{
+   mesi_cache_stat[pid].misses++;
+
+   if(access_type == DATA_LOAD_REFERENCE || access_type == INSTRUCTION_LOAD_REFERENCE)
+   {  
+      mesi_cache_stat[pid].demand_fetches += cache_block_size/WORD_SIZE; //Memory fetch
+   }
+
+   c_line = allocateCL(tag);
+   //setifDirty(access_type, c_line);
+   insert(&mesi_cache[pid].LRU_head[index], &mesi_cache[pid].LRU_tail[index], c_line);
+   mesi_cache[pid].set_contents[index]++;
+}
+
+
 }
 /************************************************************/
 
@@ -115,6 +156,7 @@ tag = addr >> mask_size;
 void flush()
 {
   /* flush the mesi caches */
+  if(debug) fclose(cacheLog);
 }
 /************************************************************/
 
@@ -196,3 +238,16 @@ void print_stats()
   printf("  copies back (words):  %d\n", copies_back);
 }
 /************************************************************/
+
+
+//Allocate cache line
+Pcache_line allocateCL(unsigned tag)
+{
+   Pcache_line c_line;
+   c_line = (Pcache_line)malloc(sizeof(cache_line));
+   c_line->tag = tag;
+   c_line->LRU_next = (Pcache_line)NULL;
+   c_line->LRU_prev = (Pcache_line)NULL;
+   return c_line;
+}
+

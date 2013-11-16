@@ -17,6 +17,12 @@
 #define CACHE_PARAM_USIZE 2
 #define CACHE_PARAM_ASSOC 3
 
+#define DATA_LOAD_REFERENCE 0
+#define DATA_STORE_REFERENCE 1
+#define INSTRUCTION_LOAD_REFERENCE 2
+
+#define DEFAULT_DEBUG TRUE
+
 /* structure definitions */
 typedef struct cache_line_ {
   unsigned tag;
@@ -51,7 +57,7 @@ typedef struct cache_stat_ {
 /* function prototypes */
 void set_cache_param();
 void init_cache();
-void perform_access();
+void perform_access(unsigned addr, unsigned access_type, unsigned pid);
 void flush();
 void delete(Pcache_line *, Pcache_line *, Pcache_line);
 void insert(Pcache_line *, Pcache_line *, Pcache_line);
@@ -61,3 +67,6 @@ void print_stats();
 
 /* macros */
 #define LOG2(x) ((int)( log((double)(x)) / log(2) ))
+
+Pcache_line allocateCL(unsigned tag);
+

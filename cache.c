@@ -334,6 +334,7 @@ void mesiStateTransition(Pcache_line c_line, unsigned whatHappened)
    }
    else
    {
+      current_state  = c_line->state;
       switch(whatHappened)
       {
          case REMOTE_READ_MISS:
@@ -346,9 +347,8 @@ void mesiStateTransition(Pcache_line c_line, unsigned whatHappened)
                   break;
                case EXCLUSIVE_STATE:
                case MODIFIED_STATE:
-                  c_line->state = SHARED_STATE;
-                  break;
                case SHARED_STATE:
+                  c_line->state = SHARED_STATE;
                   break;
                default:
                   printf("error_info : mesiStateTransition function called with an unknown state\n");
@@ -357,9 +357,69 @@ void mesiStateTransition(Pcache_line c_line, unsigned whatHappened)
             }
             break;
          case REMOTE_WRITE_MISS:
-            break;
          case REMOTE_WRITE_HIT:
+            switch(current_state)
+            {
+               case INVALID_STATE:
+                  printf("error_info : mesiStateTransition function called on a invalid state\n");
+                  exit(-1);
+                  break;
+               case EXCLUSIVE_STATE:
+               case MODIFIED_STATE:
+               case SHARED_STATE:
+                  c_line->state = INVALID_STATE;
+                  break;
+               default:
+                  printf("error_info : mesiStateTransition function called with an unknown state\n");
+                  exit(-1);
+                  break;
+            }
             break;
+         case READ_MISS_FROM_BUS:
+            c_line->state = SHARED_STATE;
+            break; 
+         case READ_MISS_FROM_MEMORY:
+            c_line->state = EXCLUSIVE_STATE;
+            break;
+         case WRITE_MISS:
+            c_line->state = MODIFIED_STATE; //Move the current state to MODIFIED on a write hit or miss
+            break;
+         case WRITE_HIT:
+            switch(current_state)
+            {
+               case INVALID_STATE: //Hit should not occur on an INVALID current state
+                  printf("error_info : write hit on an invalid state\n");
+                  exit(-1);
+                  break;
+               case MODIFIED_STATE:
+               case EXCLUSIVE_STATE:
+               case SHARED_STATE:
+                  c_line->state = MODIFIED_STATE; //Move the current state to MODIFIED on a write hit or miss
+                  break;
+               default:
+                  printf("error_info : mesiStateTransition function called with an unknown state\n");
+                  exit(-1);
+                  break;
+            }
+            break;
+         case READ_HIT:
+            switch(current_state)
+            {
+               case INVALID_STATE: //Hit should not occur on an INVALID current state
+                  printf("error_info : read hit on an invalid state\n");
+                  exit(-1);
+                  break;
+               case EXCLUSIVE_STATE:
+               case MODIFIED_STATE:
+               case SHARED_STATE:
+                  c_line->state = current_state; //Stay in current state on a read hit
+                  break;
+            }
+            break;
+          default:
+             printf("error_info : Unknown transition instigator or broadcast\n");
+             exit(-1);
+             break; 
       }
    }
 

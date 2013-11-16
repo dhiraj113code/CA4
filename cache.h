@@ -31,13 +31,16 @@
 #define MODIFIED_STATE 3
 
 /* Type of state transition instigators */
-#define READ_MISS_FROM_BUS 0
-#define READ_MISS_FROM_MEMORY 1
+#define READ_HIT 0
+#define READ_MISS_FROM_BUS 1
+#define READ_MISS_FROM_MEMORY 2
+#define WRITE_HIT 3
+#define WRITE_MISS 4
 
 /* Types of broadcasts */
-#define REMOTE_READ_MISS 2
-#define REMOTE_WRITE_MISS 3
-#define REMOTE_WRITE_HIT 4
+#define REMOTE_READ_MISS 5 
+#define REMOTE_WRITE_HIT 6
+#define REMOTE_WRITE_MISS 7
 
 
 #define DEFAULT_DEBUG TRUE

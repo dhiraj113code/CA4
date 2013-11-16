@@ -138,10 +138,8 @@ mesi_cache_stat[pid].accesses++;
 if(mesi_cache[pid].LRU_head[index] == NULL) //Miss with no Replacement
 {
    mesi_cache_stat[pid].misses++;
-
    //Create the cache line
    c_line = allocateCL(tag);
-
    //Initiate broadcast and set appropriate state
    if(request_type == READ_REQUEST)
    {
@@ -157,8 +155,9 @@ if(mesi_cache[pid].LRU_head[index] == NULL) //Miss with no Replacement
    }
    else if(request_type == WRITE_REQUEST)
    {
+      BroadcastnSearch(tag, index, REMOTE_WRITE_MISS, pid);
+      mesiStateTransition(c_line, WRITE_MISS);
    }
-
    //Put the cache line into the cache
    insert(&mesi_cache[pid].LRU_head[index], &mesi_cache[pid].LRU_tail[index], c_line);
    mesi_cache[pid].set_contents[index]++;
@@ -304,6 +303,7 @@ int BroadcastnSearch(unsigned tag, unsigned index, unsigned broadcast_type, unsi
 
 int i, found = FALSE;
 Pcache_line c_line, hitAt;
+mesi_cache_stat[broadcasting_core].broadcasts++;
 for(i = 0; i < num_core; i++)
 {
    if(i != broadcasting_core)

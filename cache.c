@@ -294,7 +294,7 @@ switch(access_type)
 }
 }
 
-int BroadcastnSearch(unsigned tag, unsigned index, unsigned broadcast_type, unsigned pid)
+int BroadcastnSearch(unsigned tag, unsigned index, unsigned broadcast_type, unsigned broadcasting_core)
 {
 //There are 3 types of broadcast_types supported
 //1. Read miss -> REMOTE_READ_MISS
@@ -303,15 +303,19 @@ int BroadcastnSearch(unsigned tag, unsigned index, unsigned broadcast_type, unsi
 //Note REMOTE_READ_HIT won't be broadcast across the bus
 
 int i, found = FALSE;
-Pcache_line hitAt;
+Pcache_line c_line, hitAt;
 for(i = 0; i < num_core; i++)
 {
-   if(i != pid)
+   if(i != broadcasting_core)
    {
-      if(search(mesi_cache[pid].LRU_head[index], tag, &hitAt))
+      c_line = mesi_cache[i].LRU_head[index];
+      if(c_line != NULL)
       {
-         if(!found) found = TRUE;
-         mesiStateTransition(hitAt, broadcast_type);
+         if(search(c_line, tag, &hitAt))
+         {
+            if(!found) found = TRUE;
+            mesiStateTransition(hitAt, broadcast_type);
+         }
       }
    }
 }

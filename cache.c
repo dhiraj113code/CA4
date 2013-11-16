@@ -143,7 +143,7 @@ if(mesi_cache[pid].LRU_head[index] == NULL) //Miss with no Replacement
    c_line = allocateCL(tag);
 
    //Initiate broadcast and set appropriate state
-   BroadcastnSetState(request_type, tag, index, pid, c_line);
+   BroadcastnSetState(request_type, tag, index, pid, c_line, FALSE);
 
    //Put the cache line into the cache
    insert(&mesi_cache[pid].LRU_head[index], &mesi_cache[pid].LRU_tail[index], c_line);
@@ -157,7 +157,7 @@ else if(!search(mesi_cache[pid].LRU_head[index], tag, &hitAt))
    c_line = allocateCL(tag);
  
    //Initiate broadcast and set appropriate state
-   BroadcastnSetState(request_type, tag, index, pid, c_line);
+   BroadcastnSetState(request_type, tag, index, pid, c_line, FALSE);
 
    if(mesi_cache[pid].set_contents[index] < mesi_cache[pid].associativity)
    {
@@ -182,13 +182,12 @@ else //Hit
    insert(&mesi_cache[pid].LRU_head[index], &mesi_cache[pid].LRU_tail[index], hitAt);
    if(request_type == READ_REQUEST)
    {
-      mesiStateTransition(hitAt, READ_HIT);
+      mesiST_Local(hitAt, READ_HIT);
    }
    else if(request_type == WRITE_REQUEST)
    {
-      mesiStateTransition(hitAt, WRITE_HIT);
+      BroadcastnSetState(request_type, tag, index, pid, hitAt, TRUE);
    }
-
 }
 }
 /************************************************************/
@@ -321,36 +320,37 @@ switch(access_type)
 
 int BroadcastnSearch(unsigned tag, unsigned index, unsigned broadcast_type, unsigned broadcasting_core)
 {
-//There are 3 types of broadcast_types supported
-//1. Read miss -> REMOTE_READ_MISS
-//2. Write miss -> REMOTE_WRITE_MISS
-//3. Write hit -> REMOTE_WRITE_HIT
-//Note REMOTE_READ_HIT won't be broadcast across the bus
+   //There are 3 types of broadcast_types supported
+   //1. Read miss -> REMOTE_READ_MISS
+   //2. Write miss -> REMOTE_WRITE_MISS
+   //3. Write hit -> REMOTE_WRITE_HIT
+   //Note REMOTE_READ_HIT won't be broadcast across the bus
 
-int i, found = FALSE;
-Pcache_line c_line, hitAt;
-mesi_cache_stat[broadcasting_core].broadcasts++;
-for(i = 0; i < num_core; i++)
-{
-   if(i != broadcasting_core)
+   int i, found = FALSE;
+   Pcache_line c_line, hitAt;
+   mesi_cache_stat[broadcasting_core].broadcasts++;
+   for(i = 0; i < num_core; i++)
    {
-      c_line = mesi_cache[i].LRU_head[index];
-      if(c_line != NULL)
+      if(i != broadcasting_core)
       {
-         if(search(c_line, tag, &hitAt))
+         c_line = mesi_cache[i].LRU_head[index];
+         if(c_line != NULL)
          {
-            if(!found) found = TRUE;
-            mesiStateTransition(hitAt, broadcast_type);
+            if(search(c_line, tag, &hitAt))
+            {
+               //if(debug) printf("debug_info : state at remote hit = %d\n", c_line->state);
+               if(!found) found = TRUE;
+               mesiST_Remote(hitAt, broadcast_type);
+            }
          }
       }
    }
-}
-if(found) return TRUE;
-else return FALSE;
+   if(found) return TRUE;
+   else return FALSE;
 }
 
 
-void mesiStateTransition(Pcache_line c_line, unsigned whatHappened)
+void mesiST_Remote(Pcache_line c_line, unsigned whatHappened)
 {
    unsigned current_state;
    if(c_line == NULL)
@@ -368,7 +368,7 @@ void mesiStateTransition(Pcache_line c_line, unsigned whatHappened)
             switch(current_state)
             {
                case INVALID_STATE:
-                  printf("error_info : mesiStateTransition function called on a invalid state\n");
+                  printf("error_info : REMOTE_READ_MISS on a invalid state\n");
                   exit(-1);
                   break;
                case EXCLUSIVE_STATE:
@@ -382,12 +382,11 @@ void mesiStateTransition(Pcache_line c_line, unsigned whatHappened)
                   break;
             }
             break;
-         case REMOTE_WRITE_MISS:
-         case REMOTE_WRITE_HIT:
+         case REMOTE_WRITE_HIT_OR_MISS:
             switch(current_state)
             {
                case INVALID_STATE:
-                  printf("error_info : mesiStateTransition function called on a invalid state\n");
+                  printf("error_info : REMOTE_WRITE_HIT_OR_MISS on a invalid state\n");
                   exit(-1);
                   break;
                case EXCLUSIVE_STATE:
@@ -401,9 +400,44 @@ void mesiStateTransition(Pcache_line c_line, unsigned whatHappened)
                   break;
             }
             break;
-         case READ_MISS_FROM_BUS:
-            c_line->state = SHARED_STATE;
+         default:
+            printf("error_info : Unknown transition instigator or broadcast\n");
+            exit(-1);
             break; 
+      }
+   }
+}
+
+void mesiST_Local(Pcache_line c_line, unsigned whatHappened)
+{
+   unsigned current_state;
+   if(c_line == NULL)
+   {
+      printf("error_info : mesiStateTransition funciton called on an unallocated cache line\n");
+      exit(-1);
+   }
+   else
+   {
+      current_state  = c_line->state;
+      switch(whatHappened)
+      {
+         case READ_HIT:
+            switch(current_state)
+            {
+               case INVALID_STATE: //Hit should not occur on an INVALID current state
+                  printf("error_info : READ_HIT on an invalid state\n");
+                  exit(-1);
+                  break;
+               case EXCLUSIVE_STATE:
+               case MODIFIED_STATE:
+               case SHARED_STATE:
+                  c_line->state = current_state; //Stay in current state on a read hit
+                  break;
+            }
+            break;
+        case READ_MISS_FROM_BUS:
+            c_line->state = SHARED_STATE;
+            break;
          case READ_MISS_FROM_MEMORY:
             c_line->state = EXCLUSIVE_STATE;
             break;
@@ -414,7 +448,7 @@ void mesiStateTransition(Pcache_line c_line, unsigned whatHappened)
             switch(current_state)
             {
                case INVALID_STATE: //Hit should not occur on an INVALID current state
-                  printf("error_info : write hit on an invalid state\n");
+                  printf("error_info : WRITE_HIT on an invalid state\n");
                   exit(-1);
                   break;
                case MODIFIED_STATE:
@@ -428,27 +462,12 @@ void mesiStateTransition(Pcache_line c_line, unsigned whatHappened)
                   break;
             }
             break;
-         case READ_HIT:
-            switch(current_state)
-            {
-               case INVALID_STATE: //Hit should not occur on an INVALID current state
-                  printf("error_info : read hit on an invalid state\n");
-                  exit(-1);
-                  break;
-               case EXCLUSIVE_STATE:
-               case MODIFIED_STATE:
-               case SHARED_STATE:
-                  c_line->state = current_state; //Stay in current state on a read hit
-                  break;
-            }
-            break;
-          default:
+         default:
              printf("error_info : Unknown transition instigator or broadcast\n");
              exit(-1);
              break; 
       }
    }
-
 }
 
 
@@ -474,7 +493,7 @@ int search(Pcache_line c, unsigned tag, Pcache_line *hitAt)
          while(c->LRU_next != NULL)
          {
             n = c->LRU_next;
-            if(n->tag == tag)
+            if(n->state != INVALID_STATE && n->tag == tag)
             {
                *hitAt = n;
                return TRUE;
@@ -487,23 +506,37 @@ int search(Pcache_line c, unsigned tag, Pcache_line *hitAt)
 }
 
 
-void BroadcastnSetState(unsigned request_type, unsigned tag, unsigned index, unsigned pid, Pcache_line c_line)
+void BroadcastnSetState(unsigned request_type, unsigned tag, unsigned index, unsigned pid, Pcache_line c_line, int isHit)
 {
    if(request_type == READ_REQUEST)
    {
+      if(isHit) {printf("error_info : There should not be a broadcast on a READ HIT\n"); exit(-1);}
+
       if(BroadcastnSearch(tag, index, REMOTE_READ_MISS, pid)) //If data to be read present in other core caches
       {
-         mesiStateTransition(c_line, READ_MISS_FROM_BUS);
+         mesiST_Local(c_line, READ_MISS_FROM_BUS);
       }
       else
       {
          mesi_cache_stat[pid].demand_fetches += cache_block_size/WORD_SIZE; //Else do a Memory fetch
-         mesiStateTransition(c_line, READ_MISS_FROM_MEMORY);
+         mesiST_Local(c_line, READ_MISS_FROM_MEMORY);
       }
    }
    else if(request_type == WRITE_REQUEST)
    {
-      BroadcastnSearch(tag, index, REMOTE_WRITE_MISS, pid);
-      mesiStateTransition(c_line, WRITE_MISS);
+      BroadcastnSearch(tag, index, REMOTE_WRITE_HIT_OR_MISS, pid);
+      if(isHit)
+      {
+         mesiST_Local(c_line, WRITE_HIT);
+      }
+      else
+      {
+         mesiST_Local(c_line, WRITE_MISS);
+      }
+   }
+   else
+   {
+      printf("error_info : Unknow request type in BroadcasenSetState\n");
+      exit(-1);
    }
 }

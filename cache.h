@@ -39,9 +39,7 @@
 
 /* Types of broadcasts */
 #define REMOTE_READ_MISS 5 
-#define REMOTE_WRITE_HIT 6
-#define REMOTE_WRITE_MISS 7
-
+#define REMOTE_WRITE_HIT_OR_MISS 6
 
 #define DEFAULT_DEBUG TRUE
 
@@ -95,6 +93,7 @@ void print_stats();
 Pcache_line allocateCL(unsigned tag);
 unsigned isReadorWrite(unsigned access_type, unsigned pid);
 int BroadcastnSearch(unsigned tag, unsigned index, unsigned broadcast_type, unsigned pid);
-void mesiStateTransition(Pcache_line c_line, unsigned whatHappened);
+void mesiST_Remote(Pcache_line c_line, unsigned whatHappened);
+void mesiST_Local(Pcache_line c_line, unsigned whatHappened);
 int search(Pcache_line c, unsigned tag, Pcache_line *hitAt);
-void BroadcastnSetState(unsigned request_type, unsigned tag, unsigned index, unsigned pid, Pcache_line c_line);
+void BroadcastnSetState(unsigned request_type, unsigned tag, unsigned index, unsigned pid, Pcache_line c_line, int isHit);

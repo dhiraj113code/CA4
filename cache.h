@@ -21,6 +21,14 @@
 #define DATA_STORE_REFERENCE 1
 #define INSTRUCTION_LOAD_REFERENCE 2
 
+#define READ_REQUEST 0
+#define WRITE_REQUEST 1
+
+/* Type of state transition instigators */
+#define READ_MISS_FROM_BUS 0
+#define READ_MISS_FROM_MEMORY 1
+
+
 #define DEFAULT_DEBUG TRUE
 
 /* structure definitions */
@@ -51,6 +59,8 @@ typedef struct cache_stat_ {
   int demand_fetches;		/* number of fetches */
   int copies_back;		/* number of write backs */
   int broadcasts;               /* number of broadcasts */
+  int read_requests;            /* number of read requests */
+  int write_requests;           /* number of write requests */
 } cache_stat, *Pcache_stat;
 
 
@@ -69,4 +79,6 @@ void print_stats();
 #define LOG2(x) ((int)( log((double)(x)) / log(2) ))
 
 Pcache_line allocateCL(unsigned tag);
-
+unsigned isReadorWrite(unsigned access_type, unsigned pid);
+int BroadcastnSearch(unsigned tag, unsigned request_type, unsigned pid);
+void mesiStateTransition(Pcache_line c_line, unsigned whatHappened);

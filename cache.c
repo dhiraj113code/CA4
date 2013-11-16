@@ -122,12 +122,13 @@ void perform_access(unsigned addr, unsigned access_type, unsigned pid)
 {
 /* handle accesses to the mesi caches */
 int mask_size;
-unsigned int index, tag;
+unsigned int index, tag, request_type;
 Pcache_line c_line, hitAt;
 
 mask_size = LOG2(mesi_cache[pid].n_sets) + mesi_cache[pid].index_mask_offset;
 index = (addr & mesi_cache[pid].index_mask) >> mesi_cache[pid].index_mask_offset;
 tag = addr >> mask_size;
+request_type = isReadorWrite(access_type, pid);
 
 if(debug) fprintf(cacheLog, "debug_info : For addr = %d, tag = %d, index = %d\n", addr, tag, index);
 
@@ -137,13 +138,27 @@ if(mesi_cache[pid].LRU_head[index] == NULL) //Miss with no Replacement
 {
    mesi_cache_stat[pid].misses++;
 
-   if(access_type == DATA_LOAD_REFERENCE || access_type == INSTRUCTION_LOAD_REFERENCE)
-   {  
-      mesi_cache_stat[pid].demand_fetches += cache_block_size/WORD_SIZE; //Memory fetch
+   //Create the cache line
+   c_line = allocateCL(tag);
+
+   //Initiate broadcast and set appropriate state
+   if(request_type == READ_REQUEST)
+   {
+      if(BroadcastnSearch(tag, request_type, pid)) //If data to be read present in other cores cache
+      {
+         mesiStateTransition(c_line, READ_MISS_FROM_BUS);
+      }
+      else
+      {
+         mesi_cache_stat[pid].demand_fetches += cache_block_size/WORD_SIZE; //Else do a Memory fetch
+         mesiStateTransition(c_line, READ_MISS_FROM_MEMORY);
+      }
+   }
+   else if(request_type == WRITE_REQUEST)
+   {
    }
 
-   c_line = allocateCL(tag);
-   //setifDirty(access_type, c_line);
+   //Put the cache line into the cache
    insert(&mesi_cache[pid].LRU_head[index], &mesi_cache[pid].LRU_tail[index], c_line);
    mesi_cache[pid].set_contents[index]++;
 }
@@ -212,6 +227,8 @@ void print_stats()
   int demand_fetches = 0;
   int copies_back = 0;
   int broadcasts = 0;
+  int read_requests = 0;
+  int write_requests = 0;
 
   printf("*** CACHE STATISTICS ***\n");
 
@@ -231,11 +248,15 @@ void print_stats()
     demand_fetches += mesi_cache_stat[i].demand_fetches;
     copies_back += mesi_cache_stat[i].copies_back;
     broadcasts += mesi_cache_stat[i].broadcasts;
+    read_requests += mesi_cache_stat[i].read_requests;
+    write_requests += mesi_cache_stat[i].write_requests;
   }
   printf("  demand fetch (words): %d\n", demand_fetches);
   /* number of broadcasts */
   printf("  broadcasts:           %d\n", broadcasts);
   printf("  copies back (words):  %d\n", copies_back);
+  printf("  read requests:        %d\n", read_requests);
+  printf("  write requests:       %d\n", write_requests);
 }
 /************************************************************/
 
@@ -251,3 +272,34 @@ Pcache_line allocateCL(unsigned tag)
    return c_line;
 }
 
+
+unsigned isReadorWrite(unsigned access_type, unsigned pid)
+{
+switch(access_type)
+{
+   case DATA_LOAD_REFERENCE:
+   case INSTRUCTION_LOAD_REFERENCE:
+      mesi_cache_stat[pid].read_requests++;
+      return READ_REQUEST;
+      break;
+   case DATA_STORE_REFERENCE:
+      mesi_cache_stat[pid].write_requests++;
+      return WRITE_REQUEST;
+      break;
+   defualt:
+      printf("error : Unrecognized access_type\n");
+      exit(-1);
+     break;
+}
+}
+
+int BroadcastnSearch(unsigned tag, unsigned request_type, unsigned pid)
+{
+return FALSE;
+}
+
+
+void mesiStateTransition(Pcache_line c_line, unsigned whatHappened)
+{
+
+}

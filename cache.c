@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <math.h>
+#include <stdlib.h>
 
 #include "cache.h"
 #include "main.h"
@@ -144,7 +145,7 @@ if(mesi_cache[pid].LRU_head[index] == NULL) //Miss with no Replacement
    //Initiate broadcast and set appropriate state
    if(request_type == READ_REQUEST)
    {
-      if(BroadcastnSearch(tag, request_type, pid)) //If data to be read present in other cores cache
+      if(BroadcastnSearch(tag, index, REMOTE_READ_MISS, pid)) //If data to be read present in other core caches
       {
          mesiStateTransition(c_line, READ_MISS_FROM_BUS);
       }
@@ -293,13 +294,68 @@ switch(access_type)
 }
 }
 
-int BroadcastnSearch(unsigned tag, unsigned request_type, unsigned pid)
+int BroadcastnSearch(unsigned tag, unsigned index, unsigned broadcast_type, unsigned pid)
 {
-return FALSE;
+//There are 3 types of broadcast_types supported
+//1. Read miss -> REMOTE_READ_MISS
+//2. Write miss -> REMOTE_WRITE_MISS
+//3. Write hit -> REMOTE_WRITE_HIT
+//Note REMOTE_READ_HIT won't be broadcast across the bus
+
+int i, found = FALSE;
+Pcache_line hitAt;
+for(i = 0; i < num_core; i++)
+{
+   if(i != pid)
+   {
+      if(search(mesi_cache[pid].LRU_head[index], tag, &hitAt))
+      {
+         if(!found) found = TRUE;
+         mesiStateTransition(hitAt, broadcast_type);
+      }
+   }
+}
+if(found) return TRUE;
+else return FALSE;
 }
 
 
 void mesiStateTransition(Pcache_line c_line, unsigned whatHappened)
 {
 
+}
+
+
+//Search whether tag is present in the double linked list cache line c
+int search(Pcache_line c, unsigned tag, Pcache_line *hitAt)
+{
+   Pcache_line n;
+   if(c == NULL)
+   {
+      printf("error : Searching an unintialized cache line\n");
+      exit(-1);
+   }
+   else
+   {
+      *hitAt = (Pcache_line)NULL;
+      if(c->state != INVALID_STATE && c->tag == tag)
+      {
+         *hitAt = c;
+         return TRUE;
+      }
+      else
+      {
+         while(c->LRU_next != NULL)
+         {
+            n = c->LRU_next;
+            if(n->tag == tag)
+            {
+               *hitAt = n;
+               return TRUE;
+            }
+            c = n;
+         }
+      }
+      return FALSE;
+   }
 }

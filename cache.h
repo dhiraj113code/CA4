@@ -24,9 +24,20 @@
 #define READ_REQUEST 0
 #define WRITE_REQUEST 1
 
+/* MESI protocol state */
+#define INVALID_STATE 0
+#define EXCLUSIVE_STATE 1
+#define SHARED_STATE 2
+#define MODIFIED_STATE 3
+
 /* Type of state transition instigators */
 #define READ_MISS_FROM_BUS 0
 #define READ_MISS_FROM_MEMORY 1
+
+/* Types of broadcasts */
+#define REMOTE_READ_MISS 2
+#define REMOTE_WRITE_MISS 3
+#define REMOTE_WRITE_HIT 4
 
 
 #define DEFAULT_DEBUG TRUE
@@ -80,5 +91,6 @@ void print_stats();
 
 Pcache_line allocateCL(unsigned tag);
 unsigned isReadorWrite(unsigned access_type, unsigned pid);
-int BroadcastnSearch(unsigned tag, unsigned request_type, unsigned pid);
+int BroadcastnSearch(unsigned tag, unsigned index, unsigned broadcast_type, unsigned pid);
 void mesiStateTransition(Pcache_line c_line, unsigned whatHappened);
+int search(Pcache_line c, unsigned tag, Pcache_line *hitAt);

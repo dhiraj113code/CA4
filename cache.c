@@ -242,6 +242,30 @@ if(debug) PrintCache(n_sets);
 void flush()
 {
   /* flush the mesi caches */
+  int i, pid;
+  Pcache_line c_line, n_line;
+
+  for(pid = 0; pid < num_core; pid++)
+  {
+     for(i = 0; i < mesi_cache[pid].n_sets; i++)
+     {
+        c_line = mesi_cache[pid].LRU_head[i];
+        if(c_line != NULL)
+        {
+           if(c_line->state == MODIFIED_STATE)
+              mesi_cache_stat[pid].copies_back += cache_block_size/WORD_SIZE;
+           while(c_line->LRU_next != NULL)
+           {
+              n_line = c_line->LRU_next;
+              if(n_line->state == MODIFIED_STATE)
+                 mesi_cache_stat[pid].copies_back += cache_block_size/WORD_SIZE;
+              c_line = n_line;
+           }
+        }
+     }
+  }
+  
+
   if(debug) fclose(cacheLog);
 }
 /************************************************************/

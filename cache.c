@@ -135,7 +135,7 @@ tag = addr >> mask_size;
 request_type = isReadorWrite(access_type, pid);
 n_sets = mesi_cache[pid].n_sets;
 
-if(debug) fprintf(cacheLog, "addr = %x, index = %d, tag = %x -- ", addr, index, tag);
+if(debug) fprintf(cacheLog, "core = %d, addr = %x, index = %d, tag = %x -- ", pid, addr, index, tag);
 
 mesi_cache_stat[pid].accesses++;
 
@@ -515,6 +515,7 @@ int search(Pcache_line c, unsigned tag, Pcache_line *hitAt)
 
 void BroadcastnSetState(unsigned request_type, unsigned tag, unsigned index, unsigned pid, Pcache_line c_line, int isHit)
 {
+   if(debug) fprintf(cacheLog, "(broadcast) ");
    if(request_type == READ_REQUEST)
    {
       if(isHit) {printf("error_info : There should not be a broadcast on a READ HIT\n"); exit(-1);}
@@ -570,22 +571,22 @@ while(c_line)
 void PrintCache(unsigned n_sets)
 {
    int i, pid;
-   fprintf(cacheLog, "*********************************************************************\n");
+   fprintf(cacheLog, "***********************************************************************************************\n");
    for(i = 0; i < n_sets; i++)
    {
       fprintf(cacheLog, "Line %d : ", i);
       for(pid = 0; pid < num_core; pid++)
       {
-         fprintf(cacheLog, "(");
+         fprintf(cacheLog, " {");
          if(mesi_cache[pid].LRU_head[i] != NULL)
          {
             printCL(mesi_cache[pid].LRU_head[i]);
          }
-         fprintf(cacheLog, ")");
+         fprintf(cacheLog, "} ");
       }
       fprintf(cacheLog, "\n");
    }
-   fprintf(cacheLog, "*********************************************************************\n");
+   fprintf(cacheLog, "***********************************************************************************************\n");
 }
 
 char stateSymbol(unsigned state)

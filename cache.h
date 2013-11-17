@@ -36,11 +36,12 @@
 #define READ_MISS_FROM_BUS 1
 #define READ_MISS_FROM_MEMORY 2
 #define WRITE_HIT 3
-#define WRITE_MISS 4
+#define WRITE_MISS_FROM_BUS 4
+#define WRITE_MISS_FROM_MEMORY 5
 
 /* Types of broadcasts */
-#define REMOTE_READ_MISS 5 
-#define REMOTE_WRITE_HIT_OR_MISS 6
+#define REMOTE_READ_MISS 6 
+#define REMOTE_WRITE_HIT_OR_MISS 7
 
 #define TAG_MISS 0
 #define TAG_HIT_VALID 1
@@ -98,7 +99,7 @@ void print_stats();
 Pcache_line allocateCL(unsigned tag);
 unsigned isReadorWrite(unsigned access_type, unsigned pid);
 int BroadcastnSearch(unsigned tag, unsigned index, unsigned broadcast_type, unsigned pid);
-void mesiST_Remote(Pcache_line c_line, unsigned whatHappened);
+void mesiST_Remote(Pcache_line c_line, unsigned whatHappened, unsigned pid);
 void mesiST_Local(Pcache_line c_line, unsigned whatHappened);
 int search(Pcache_line c, unsigned tag, Pcache_line *hitAt);
 void BroadcastnSetState(unsigned request_type, unsigned tag, unsigned index, unsigned pid, Pcache_line c_line, int isHit);

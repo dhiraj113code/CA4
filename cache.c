@@ -137,6 +137,7 @@ request_type = isReadorWrite(access_type, pid);
 n_sets = mesi_cache[pid].n_sets;
 
 ref_count++;
+
 if(debug) fprintf(cacheLog, "Ref(%d): core = %d, addr = %x, index = %d, tag = %x -- ", ref_count, pid, addr, index, tag);
 
 mesi_cache_stat[pid].accesses++;
@@ -184,6 +185,8 @@ else
             mesi_cache_stat[pid].replacements++;
 
             //How to do eviction depending on the state. What is the dirty in mesi?
+            if(mesi_cache[pid].LRU_tail[index]->state == MODIFIED_STATE)
+               mesi_cache_stat[pid].copies_back += cache_block_size/WORD_SIZE;
 
             delete(&mesi_cache[pid].LRU_head[index], &mesi_cache[pid].LRU_tail[index], mesi_cache[pid].LRU_tail[index]);
             insert(&mesi_cache[pid].LRU_head[index], &mesi_cache[pid].LRU_tail[index], c_line);
@@ -205,12 +208,28 @@ else
       if(request_type == READ_REQUEST)
       {
          if(debug) fprintf(cacheLog, "Is a READ_HIT\n");
-         mesiST_Local(hitAt, READ_HIT);
+         mesiST_Local(hitAt, READ_HIT); //Stay in the same state. *REDUNDANT*
       }
       else if(request_type == WRITE_REQUEST)
       {
          if(debug) fprintf(cacheLog, "Is a WRITE_HIT\n");
-         BroadcastnSetState(request_type, tag, index, pid, hitAt, TRUE);
+         switch(hitAt->state)
+         {
+            case EXCLUSIVE_STATE:
+               mesiST_Local(hitAt, WRITE_HIT); //Main optimization of MESI. No broadcast on a WRITE HIT on an exclusive block
+               if(debug) fprintf(cacheLog, "Is a WRITE_HIT\n");
+               break;
+            case SHARED_STATE:
+               BroadcastnSetState(request_type, tag, index, pid, hitAt, TRUE); //Broadcast to invalidate other cache blocks
+               break;
+            case MODIFIED_STATE:
+               mesiST_Local(hitAt, WRITE_HIT); //Stay in modified state. *REDUNDANT*
+               if(debug) fprintf(cacheLog, "Is a WRITE_HIT\n");
+               break;
+            default:
+               {printf("error_info : Wrong state during a write hit\n"); exit(-1);}
+               break;
+         }
       }
    }
    else { printf("error_info : search function returning an unknow state\n"); exit(-1);}
@@ -367,7 +386,7 @@ int BroadcastnSearch(unsigned tag, unsigned index, unsigned broadcast_type, unsi
             {
                //if(debug) printf("debug_info : state at remote hit = %d\n", c_line->state);
                if(!found) found = TRUE;
-               mesiST_Remote(hitAt, broadcast_type);
+               mesiST_Remote(hitAt, broadcast_type, i);
             }
          }
       }
@@ -377,7 +396,7 @@ int BroadcastnSearch(unsigned tag, unsigned index, unsigned broadcast_type, unsi
 }
 
 
-void mesiST_Remote(Pcache_line c_line, unsigned whatHappened)
+void mesiST_Remote(Pcache_line c_line, unsigned whatHappened, unsigned pid)
 {
    unsigned current_state;
    if(c_line == NULL)
@@ -399,8 +418,11 @@ void mesiST_Remote(Pcache_line c_line, unsigned whatHappened)
                   exit(-1);
                   break;
                case EXCLUSIVE_STATE:
-               case MODIFIED_STATE:
                case SHARED_STATE:
+                  c_line->state = SHARED_STATE;
+                  break;
+               case MODIFIED_STATE:
+                  mesi_cache_stat[pid].copies_back += cache_block_size/WORD_SIZE;
                   c_line->state = SHARED_STATE;
                   break;
                default:
@@ -468,7 +490,8 @@ void mesiST_Local(Pcache_line c_line, unsigned whatHappened)
          case READ_MISS_FROM_MEMORY:
             c_line->state = EXCLUSIVE_STATE;
             break;
-         case WRITE_MISS:
+         case WRITE_MISS_FROM_BUS:
+         case WRITE_MISS_FROM_MEMORY:
             c_line->state = MODIFIED_STATE; //Move the current state to MODIFIED on a write hit or miss
             break;
          case WRITE_HIT:
@@ -562,15 +585,25 @@ void BroadcastnSetState(unsigned request_type, unsigned tag, unsigned index, uns
    else if(request_type == WRITE_REQUEST)
    {
       BroadcastnSearch(tag, index, REMOTE_WRITE_HIT_OR_MISS, pid);
-      if(isHit)
+      if(isHit) //WRITE_HIT
       {
+         BroadcastnSearch(tag, index, REMOTE_WRITE_HIT_OR_MISS, pid); //Broadcast in case of a REMOTE_WRITE_HIT
          mesiST_Local(c_line, WRITE_HIT);
          if(debug) fprintf(cacheLog, "Is a WRITE_HIT\n");
       }
-      else
+      else //WRITE_MISS
       {
-         mesiST_Local(c_line, WRITE_MISS);
-         if(debug) fprintf(cacheLog, "Is a WRITE_MISS\n");
+         if(BroadcastnSearch(tag, index, REMOTE_WRITE_HIT_OR_MISS, pid))
+         {
+            mesiST_Local(c_line, WRITE_MISS_FROM_BUS);
+            if(debug) fprintf(cacheLog, "Is a WRITE_MISS_FROM_BUS\n");
+         }
+         else
+         {
+            mesi_cache_stat[pid].demand_fetches += cache_block_size/WORD_SIZE; //Else do a Memory fetch
+            mesiST_Local(c_line, WRITE_MISS_FROM_MEMORY);
+            if(debug) fprintf(cacheLog, "Is a WRITE_MISS_FROM_MEMORY\n");
+         }
       }
    }
    else

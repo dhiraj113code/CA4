@@ -42,6 +42,10 @@
 #define REMOTE_READ_MISS 5 
 #define REMOTE_WRITE_HIT_OR_MISS 6
 
+#define TAG_MISS 0
+#define TAG_HIT_VALID 1
+#define TAG_HIT_INVALID 2
+
 #define DEFAULT_DEBUG FALSE 
 
 /* structure definitions */

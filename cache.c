@@ -19,6 +19,7 @@ static int num_core = DEFAULT_NUM_CORE;
 static cache mesi_cache[8];
 static cache_stat mesi_cache_stat[8];
 static int debug = DEFAULT_DEBUG;
+static int ref_count = 0;
 static FILE *cacheLog;
 
 /************************************************************/
@@ -126,7 +127,7 @@ void perform_access(unsigned addr, unsigned access_type, unsigned pid)
 {
 /* handle accesses to the mesi caches */
 int mask_size;
-unsigned int index, tag, request_type, n_sets;
+unsigned int index, tag, request_type, n_sets, search_result;
 Pcache_line c_line, hitAt;
 
 mask_size = LOG2(mesi_cache[pid].n_sets) + mesi_cache[pid].index_mask_offset;
@@ -135,7 +136,8 @@ tag = addr >> mask_size;
 request_type = isReadorWrite(access_type, pid);
 n_sets = mesi_cache[pid].n_sets;
 
-if(debug) fprintf(cacheLog, "core = %d, addr = %x, index = %d, tag = %x -- ", pid, addr, index, tag);
+ref_count++;
+if(debug) fprintf(cacheLog, "Ref(%d): core = %d, addr = %x, index = %d, tag = %x -- ", ref_count, pid, addr, index, tag);
 
 mesi_cache_stat[pid].accesses++;
 
@@ -153,47 +155,65 @@ if(mesi_cache[pid].LRU_head[index] == NULL) //Miss with no Replacement
    insert(&mesi_cache[pid].LRU_head[index], &mesi_cache[pid].LRU_tail[index], c_line);
    mesi_cache[pid].set_contents[index]++;
 }
-else if(!search(mesi_cache[pid].LRU_head[index], tag, &hitAt))
+else
 {
-   mesi_cache_stat[pid].misses++;
+   search_result = search(mesi_cache[pid].LRU_head[index], tag, &hitAt); 
 
-   //Creating the cache_line to be inserted
-   c_line = allocateCL(tag);
+   if(search_result == TAG_MISS || search_result == TAG_HIT_INVALID)
+   {
+      mesi_cache_stat[pid].misses++;
+
+      if(search_result == TAG_HIT_INVALID)
+         c_line = hitAt;
+      else //Creating the cache_line to be inserted
+         c_line = allocateCL(tag);
  
-   //Initiate broadcast and set appropriate state
-   BroadcastnSetState(request_type, tag, index, pid, c_line, FALSE);
+      //Initiate broadcast and set appropriate state
+      BroadcastnSetState(request_type, tag, index, pid, c_line, FALSE);
 
-   if(mesi_cache[pid].set_contents[index] < mesi_cache[pid].associativity)
-   {
-      //Inserting the cache line
-      insert(&mesi_cache[pid].LRU_head[index], &mesi_cache[pid].LRU_tail[index], c_line);
-      mesi_cache[pid].set_contents[index]++;
-   }
-   else //While evicting
-   {
-      mesi_cache_stat[pid].replacements++;
+      if(search_result == TAG_MISS)
+      {
+         if(mesi_cache[pid].set_contents[index] < mesi_cache[pid].associativity)
+         {
+            //Inserting the cache line
+            insert(&mesi_cache[pid].LRU_head[index], &mesi_cache[pid].LRU_tail[index], c_line);
+            mesi_cache[pid].set_contents[index]++;
+         }
+         else //While evicting
+         {
+            mesi_cache_stat[pid].replacements++;
 
-      //How to do eviction depending on the state. What is the dirty in mesi?
+            //How to do eviction depending on the state. What is the dirty in mesi?
 
-      delete(&mesi_cache[pid].LRU_head[index], &mesi_cache[pid].LRU_tail[index], mesi_cache[pid].LRU_tail[index]);
-      insert(&mesi_cache[pid].LRU_head[index], &mesi_cache[pid].LRU_tail[index], c_line);
+            delete(&mesi_cache[pid].LRU_head[index], &mesi_cache[pid].LRU_tail[index], mesi_cache[pid].LRU_tail[index]);
+            insert(&mesi_cache[pid].LRU_head[index], &mesi_cache[pid].LRU_tail[index], c_line);
+         }
+      }
+      else if(search_result == TAG_HIT_INVALID)
+      {
+         delete(&mesi_cache[pid].LRU_head[index], &mesi_cache[pid].LRU_tail[index], hitAt);
+         insert(&mesi_cache[pid].LRU_head[index], &mesi_cache[pid].LRU_tail[index], hitAt);
+         
+      }
+      else { printf("error_info : search function returning an unknown state\n"); exit(-1);}
    }
-}
-else //Hit
-{
-   //LRU Implementation on a hit
-   delete(&mesi_cache[pid].LRU_head[index], &mesi_cache[pid].LRU_tail[index], hitAt);
-   insert(&mesi_cache[pid].LRU_head[index], &mesi_cache[pid].LRU_tail[index], hitAt);
-   if(request_type == READ_REQUEST)
+   else if(search_result == TAG_HIT_VALID) //Hit
    {
-      if(debug) fprintf(cacheLog, "Is a READ_HIT\n");
-      mesiST_Local(hitAt, READ_HIT);
+      //LRU Implementation on a hit
+      delete(&mesi_cache[pid].LRU_head[index], &mesi_cache[pid].LRU_tail[index], hitAt);
+      insert(&mesi_cache[pid].LRU_head[index], &mesi_cache[pid].LRU_tail[index], hitAt);
+      if(request_type == READ_REQUEST)
+      {
+         if(debug) fprintf(cacheLog, "Is a READ_HIT\n");
+         mesiST_Local(hitAt, READ_HIT);
+      }
+      else if(request_type == WRITE_REQUEST)
+      {
+         if(debug) fprintf(cacheLog, "Is a WRITE_HIT\n");
+         BroadcastnSetState(request_type, tag, index, pid, hitAt, TRUE);
+      }
    }
-   else if(request_type == WRITE_REQUEST)
-   {
-      if(debug) fprintf(cacheLog, "Is a WRITE_HIT\n");
-      BroadcastnSetState(request_type, tag, index, pid, hitAt, TRUE);
-   }
+   else { printf("error_info : search function returning an unknow state\n"); exit(-1);}
 }
 if(debug) PrintCache(n_sets);
 }
@@ -343,7 +363,7 @@ int BroadcastnSearch(unsigned tag, unsigned index, unsigned broadcast_type, unsi
          c_line = mesi_cache[i].LRU_head[index];
          if(c_line != NULL)
          {
-            if(search(c_line, tag, &hitAt))
+            if(search(c_line, tag, &hitAt) == TAG_HIT_VALID)
             {
                //if(debug) printf("debug_info : state at remote hit = %d\n", c_line->state);
                if(!found) found = TRUE;
@@ -479,6 +499,7 @@ void mesiST_Local(Pcache_line c_line, unsigned whatHappened)
 
 
 //Search whether tag is present in the double linked list cache line c
+//Tri-state search
 int search(Pcache_line c, unsigned tag, Pcache_line *hitAt)
 {
    Pcache_line n;
@@ -490,25 +511,31 @@ int search(Pcache_line c, unsigned tag, Pcache_line *hitAt)
    else
    {
       *hitAt = (Pcache_line)NULL;
-      if(c->state != INVALID_STATE && c->tag == tag)
+      if(c->tag == tag)
       {
          *hitAt = c;
-         return TRUE;
+         if(c->state == INVALID_STATE)
+            return TAG_HIT_INVALID;
+         else
+            return TAG_HIT_VALID;
       }
       else
       {
          while(c->LRU_next != NULL)
          {
             n = c->LRU_next;
-            if(n->state != INVALID_STATE && n->tag == tag)
+            if(n->tag == tag)
             {
                *hitAt = n;
-               return TRUE;
+               if(n->state == INVALID_STATE)
+                  return TAG_HIT_INVALID;
+               else
+                  return TAG_HIT_VALID;
             }
             c = n;
          }
       }
-      return FALSE;
+      return TAG_MISS;
    }
 }
 

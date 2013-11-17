@@ -16,6 +16,7 @@
 #define CACHE_PARAM_BLOCK_SIZE 1
 #define CACHE_PARAM_USIZE 2
 #define CACHE_PARAM_ASSOC 3
+#define PARAM_DEBUG 4 
 
 #define DATA_LOAD_REFERENCE 0
 #define DATA_STORE_REFERENCE 1
@@ -41,7 +42,7 @@
 #define REMOTE_READ_MISS 5 
 #define REMOTE_WRITE_HIT_OR_MISS 6
 
-#define DEFAULT_DEBUG TRUE
+#define DEFAULT_DEBUG FALSE 
 
 /* structure definitions */
 typedef struct cache_line_ {
@@ -97,3 +98,6 @@ void mesiST_Remote(Pcache_line c_line, unsigned whatHappened);
 void mesiST_Local(Pcache_line c_line, unsigned whatHappened);
 int search(Pcache_line c, unsigned tag, Pcache_line *hitAt);
 void BroadcastnSetState(unsigned request_type, unsigned tag, unsigned index, unsigned pid, Pcache_line c_line, int isHit);
+void printCL(Pcache_line c_line);
+void PrintCache(unsigned n_sets);
+char stateSymbol(unsigned state);

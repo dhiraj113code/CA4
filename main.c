@@ -37,6 +37,7 @@ void parse_args(argc, argv)
       printf("\t-bs <bs>: \tset cache block size to <bs>\n");
       printf("\t-us <us>: \tset unified cache size to <us>\n");
       printf("\t-a <a>: \tset cache associativity to <a>\n");
+      printf("\t-dg: \t\tEnable printing of debug messages\n");
       exit(0);
     }
     
@@ -71,6 +72,12 @@ void parse_args(argc, argv)
       set_cache_param(CACHE_PARAM_ASSOC, value);
       arg_index += 2;
       continue;
+    }
+
+    if(!strcmp(argv[arg_index], "-dg")) {
+       set_cache_param(PARAM_DEBUG, value);
+       arg_index += 1;
+       continue;
     }
 
     printf("error:  unrecognized flag %s\n", argv[arg_index]);

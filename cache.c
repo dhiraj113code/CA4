@@ -40,6 +40,9 @@ void set_cache_param(param, value)
   case CACHE_PARAM_ASSOC:
     cache_assoc = value;
     break;
+  case PARAM_DEBUG:
+    debug = TRUE;
+    break;
   default:
     printf("error set_cache_param: bad parameter value\n");
     exit(-1);
@@ -123,15 +126,16 @@ void perform_access(unsigned addr, unsigned access_type, unsigned pid)
 {
 /* handle accesses to the mesi caches */
 int mask_size;
-unsigned int index, tag, request_type;
+unsigned int index, tag, request_type, n_sets;
 Pcache_line c_line, hitAt;
 
 mask_size = LOG2(mesi_cache[pid].n_sets) + mesi_cache[pid].index_mask_offset;
 index = (addr & mesi_cache[pid].index_mask) >> mesi_cache[pid].index_mask_offset;
 tag = addr >> mask_size;
 request_type = isReadorWrite(access_type, pid);
+n_sets = mesi_cache[pid].n_sets;
 
-if(debug) fprintf(cacheLog, "debug_info : For addr = %d, tag = %d, index = %d\n", addr, tag, index);
+if(debug) fprintf(cacheLog, "addr = %x, index = %d, tag = %x -- ", addr, index, tag);
 
 mesi_cache_stat[pid].accesses++;
 
@@ -182,13 +186,16 @@ else //Hit
    insert(&mesi_cache[pid].LRU_head[index], &mesi_cache[pid].LRU_tail[index], hitAt);
    if(request_type == READ_REQUEST)
    {
+      if(debug) fprintf(cacheLog, "Is a READ_HIT\n");
       mesiST_Local(hitAt, READ_HIT);
    }
    else if(request_type == WRITE_REQUEST)
    {
+      if(debug) fprintf(cacheLog, "Is a WRITE_HIT\n");
       BroadcastnSetState(request_type, tag, index, pid, hitAt, TRUE);
    }
 }
+if(debug) PrintCache(n_sets);
 }
 /************************************************************/
 
@@ -515,11 +522,13 @@ void BroadcastnSetState(unsigned request_type, unsigned tag, unsigned index, uns
       if(BroadcastnSearch(tag, index, REMOTE_READ_MISS, pid)) //If data to be read present in other core caches
       {
          mesiST_Local(c_line, READ_MISS_FROM_BUS);
+         if(debug) fprintf(cacheLog, "Is a READ_MISS got FROM_BUS\n");
       }
       else
       {
          mesi_cache_stat[pid].demand_fetches += cache_block_size/WORD_SIZE; //Else do a Memory fetch
          mesiST_Local(c_line, READ_MISS_FROM_MEMORY);
+         if(debug) fprintf(cacheLog, "Is a READ_MISS got FROM_MEMORY\n");
       }
    }
    else if(request_type == WRITE_REQUEST)
@@ -528,15 +537,76 @@ void BroadcastnSetState(unsigned request_type, unsigned tag, unsigned index, uns
       if(isHit)
       {
          mesiST_Local(c_line, WRITE_HIT);
+         if(debug) fprintf(cacheLog, "Is a WRITE_HIT\n");
       }
       else
       {
          mesiST_Local(c_line, WRITE_MISS);
+         if(debug) fprintf(cacheLog, "Is a WRITE_MISS\n");
       }
    }
    else
    {
       printf("error_info : Unknow request type in BroadcasenSetState\n");
       exit(-1);
+   }
+}
+
+
+
+//Debug functions
+void printCL(Pcache_line c_line)
+{
+Pcache_line n_line;
+while(c_line)
+{
+   fprintf(cacheLog, "|%c %x|", stateSymbol(c_line->state), c_line->tag);
+   n_line = c_line->LRU_next;
+   c_line = n_line;
+}
+}
+
+
+void PrintCache(unsigned n_sets)
+{
+   int i, pid;
+   fprintf(cacheLog, "*********************************************************************\n");
+   for(i = 0; i < n_sets; i++)
+   {
+      fprintf(cacheLog, "Line %d : ", i);
+      for(pid = 0; pid < num_core; pid++)
+      {
+         fprintf(cacheLog, "(");
+         if(mesi_cache[pid].LRU_head[i] != NULL)
+         {
+            printCL(mesi_cache[pid].LRU_head[i]);
+         }
+         fprintf(cacheLog, ")");
+      }
+      fprintf(cacheLog, "\n");
+   }
+   fprintf(cacheLog, "*********************************************************************\n");
+}
+
+char stateSymbol(unsigned state)
+{
+   switch(state)
+   {
+      case INVALID_STATE:
+         return 'I';
+         break;
+      case EXCLUSIVE_STATE:
+         return 'E';
+         break;
+      case SHARED_STATE:
+         return 'S';
+         break;
+      case MODIFIED_STATE:
+         return 'M';
+         break;
+      default:
+         printf("invalid state input to stateSymbol\n");
+         exit(-1);
+         break;
    }
 }

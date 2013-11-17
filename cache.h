@@ -41,7 +41,8 @@
 
 /* Types of broadcasts */
 #define REMOTE_READ_MISS 6 
-#define REMOTE_WRITE_HIT_OR_MISS 7
+#define REMOTE_WRITE_HIT 7
+#define REMOTE_WRITE_MISS 8
 
 #define TAG_MISS 0
 #define TAG_HIT_VALID 1

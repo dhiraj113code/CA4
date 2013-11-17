@@ -431,11 +431,21 @@ void mesiST_Remote(Pcache_line c_line, unsigned whatHappened, unsigned pid)
                   break;
             }
             break;
-         case REMOTE_WRITE_HIT_OR_MISS:
+         case REMOTE_WRITE_HIT:
+            switch(current_state)
+            {
+               case SHARED_STATE:
+                  c_line->state = INVALID_STATE;
+                  break;
+               default:
+                  {printf("error_info : REMOTE_WRITE_HIT on a not SHARED_STATE block\n"); exit(-1);}
+                 
+            }
+         case REMOTE_WRITE_MISS:
             switch(current_state)
             {
                case INVALID_STATE:
-                  printf("error_info : REMOTE_WRITE_HIT_OR_MISS on a invalid state\n");
+                  printf("error_info : REMOTE_WRITE_MISS on a INVALID_STATE\n");
                   exit(-1);
                   break;
                case EXCLUSIVE_STATE:
@@ -492,7 +502,7 @@ void mesiST_Local(Pcache_line c_line, unsigned whatHappened)
             break;
          case WRITE_MISS_FROM_BUS:
          case WRITE_MISS_FROM_MEMORY:
-            c_line->state = MODIFIED_STATE; //Move the current state to MODIFIED on a write hit or miss
+            c_line->state = MODIFIED_STATE; //Move the current state to MODIFIED on a write miss
             break;
          case WRITE_HIT:
             switch(current_state)
@@ -504,7 +514,7 @@ void mesiST_Local(Pcache_line c_line, unsigned whatHappened)
                case MODIFIED_STATE:
                case EXCLUSIVE_STATE:
                case SHARED_STATE:
-                  c_line->state = MODIFIED_STATE; //Move the current state to MODIFIED on a write hit or miss
+                  c_line->state = MODIFIED_STATE; //Move the current state to MODIFIED on a write hit
                   break;
                default:
                   printf("error_info : mesiStateTransition function called with an unknown state\n");
@@ -584,16 +594,15 @@ void BroadcastnSetState(unsigned request_type, unsigned tag, unsigned index, uns
    }
    else if(request_type == WRITE_REQUEST)
    {
-      BroadcastnSearch(tag, index, REMOTE_WRITE_HIT_OR_MISS, pid);
       if(isHit) //WRITE_HIT
       {
-         BroadcastnSearch(tag, index, REMOTE_WRITE_HIT_OR_MISS, pid); //Broadcast in case of a REMOTE_WRITE_HIT
+         BroadcastnSearch(tag, index, REMOTE_WRITE_HIT, pid); //Broadcast in case of a REMOTE_WRITE_HIT
          mesiST_Local(c_line, WRITE_HIT);
          if(debug) fprintf(cacheLog, "Is a WRITE_HIT\n");
       }
       else //WRITE_MISS
       {
-         if(BroadcastnSearch(tag, index, REMOTE_WRITE_HIT_OR_MISS, pid))
+         if(BroadcastnSearch(tag, index, REMOTE_WRITE_MISS, pid))
          {
             mesiST_Local(c_line, WRITE_MISS_FROM_BUS);
             if(debug) fprintf(cacheLog, "Is a WRITE_MISS_FROM_BUS\n");
@@ -631,7 +640,7 @@ while(c_line)
 void PrintCache(unsigned n_sets)
 {
    int i, pid;
-   fprintf(cacheLog, "***********************************************************************************************\n");
+   fprintf(cacheLog, "**************************************************************************************************************************\n");
    for(i = 0; i < n_sets; i++)
    {
       fprintf(cacheLog, "Line %d : ", i);
@@ -646,7 +655,7 @@ void PrintCache(unsigned n_sets)
       }
       fprintf(cacheLog, "\n");
    }
-   fprintf(cacheLog, "***********************************************************************************************\n");
+   fprintf(cacheLog, "**************************************************************************************************************************\n");
 }
 
 char stateSymbol(unsigned state)

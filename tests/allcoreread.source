@@ -1,6 +1,6 @@
-0 0 abc054
-1 0 abc053
-2 0 abc152
+0 0 abc054  #Read a cache line into core 0
+1 0 abc053  #Read the same cache line from core 1
+2 0 abc152  
 3 0 abc25b
 0 0 abc356
 1 0 abc158
@@ -14,8 +14,8 @@
 0 0 abc25f
 1 0 abc457
 0 0 abc45e
-0 1 abc059
+0 1 abc059   #First Write
 3 1 abc15a
 0 0 abc15b
 2 1 abc15e
-1 0 abc15a
+1 0 abc15a   #Repeat for a different cache index

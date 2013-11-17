@@ -212,7 +212,6 @@ else
       }
       else if(request_type == WRITE_REQUEST)
       {
-         if(debug) fprintf(cacheLog, "Is a WRITE_HIT\n");
          switch(hitAt->state)
          {
             case EXCLUSIVE_STATE:
@@ -234,6 +233,7 @@ else
    }
    else { printf("error_info : search function returning an unknow state\n"); exit(-1);}
 }
+if(debug) PrintLiveStats();
 if(debug) PrintCache(n_sets);
 }
 /************************************************************/
@@ -241,6 +241,7 @@ if(debug) PrintCache(n_sets);
 /************************************************************/
 void flush()
 {
+   if(debug) fprintf(cacheLog, "Initiating flush\n");
   /* flush the mesi caches */
   int i, pid;
   Pcache_line c_line, n_line;
@@ -264,8 +265,7 @@ void flush()
         }
      }
   }
-  
-
+  if(debug) PrintLiveStats();
   if(debug) fclose(cacheLog);
 }
 /************************************************************/
@@ -680,6 +680,43 @@ void PrintCache(unsigned n_sets)
       fprintf(cacheLog, "\n");
    }
    fprintf(cacheLog, "**************************************************************************************************************************\n");
+}
+
+void PrintLiveStats()
+{
+int i;
+int total_accesses = 0, total_misses = 0, total_replacements = 0, total_demand_fetches = 0, total_copies_back = 0, total_broadcasts = 0;
+fprintf(cacheLog, "**************************************************************************************************************************\n");
+for (i = 0; i < num_core; i++)
+{
+    total_accesses += mesi_cache_stat[i].accesses;
+    total_misses += mesi_cache_stat[i].misses;
+    total_replacements += mesi_cache_stat[i].replacements;
+    total_demand_fetches += mesi_cache_stat[i].demand_fetches;
+    total_copies_back += mesi_cache_stat[i].copies_back;
+    total_broadcasts += mesi_cache_stat[i].broadcasts;
+ 
+    fprintf(cacheLog, "(");
+    fprintf(cacheLog, "C%d: ", i);
+    fprintf(cacheLog, "a=%d,", mesi_cache_stat[i].accesses);
+    fprintf(cacheLog, "m=%d,", mesi_cache_stat[i].misses);
+    fprintf(cacheLog, "r= %d,", mesi_cache_stat[i].replacements);
+    fprintf(cacheLog, "d=%d,", mesi_cache_stat[i].demand_fetches);
+    fprintf(cacheLog, "b=%d,", mesi_cache_stat[i].broadcasts);
+    fprintf(cacheLog, "c=%d", mesi_cache_stat[i].copies_back);
+    fprintf(cacheLog, ") ");
+    
+}
+fprintf(cacheLog, "(");
+fprintf(cacheLog, "C: ");
+fprintf(cacheLog, "a=%d,", total_accesses);
+fprintf(cacheLog, "m=%d,", total_misses);
+fprintf(cacheLog, "r=%d,", total_replacements);
+fprintf(cacheLog, "d=%d,", total_demand_fetches);
+fprintf(cacheLog, "b=%d,", total_broadcasts);
+fprintf(cacheLog, "c=%d", total_copies_back);
+fprintf(cacheLog, ") ");
+fprintf(cacheLog, "\n");
 }
 
 char stateSymbol(unsigned state)

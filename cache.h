@@ -107,3 +107,4 @@ void BroadcastnSetState(unsigned request_type, unsigned tag, unsigned index, uns
 void printCL(Pcache_line c_line);
 void PrintCache(unsigned n_sets);
 char stateSymbol(unsigned state);
+void PrintLiveStats();

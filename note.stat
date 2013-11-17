@@ -1,5 +1,5 @@
-./sim -n 4 -us 512 -bs 16 -a 1 -dg ./tests/allcoreread.source 
-(C0: a=9,m=7,r= 4,d=12,b=7,c=4) (C1: a=6,m=4,r= 1,d=4,b=4,c=0) (C2: a=3,m=3,r= 0,d=4,b=3,c=4) (C3: a=3,m=3,r= 1,d=4,b=3,c=4) (C: a=21,m=17,r=6,d=24,b=17,c=12)
+./sim -n 4 -us 256 -bs 16 -a 1 -dg ./tests/allcoreread.source 
+(C0: a=9,m=9,r= 8,d=16,b=9,c=4) (C1: a=6,m=6,r= 5,d=12,b=6,c=0) (C2: a=3,m=3,r= 2,d=4,b=3,c=4) (C3: a=3,m=3,r= 2,d=8,b=3,c=4) (C: a=21,m=21,r=17,d=40,b=21,c=12)
 
 ./sim -n 4 -us 512 -bs 16 -a 2 -dg ./tests/allcoreread.source 
 (C0: a=9,m=7,r= 5,d=12,b=7,c=4) (C1: a=6,m=4,r= 1,d=4,b=4,c=0) (C2: a=3,m=3,r= 0,d=4,b=3,c=4) (C3: a=3,m=3,r= 1,d=4,b=3,c=4) (C: a=21,m=17,r=7,d=24,b=17,c=12)

@@ -1,0 +1,5 @@
+0 0 def30  #Load
+0 1 def35  #Write EXCLUSIVE -> MODIFIED 
+1 0 def39  #Remote Read. MODIFIED -> SHARED #Remote : EXCLUSIVE->SHARED #Write back to memory
+0 1 def3f  #Write #SHARED -> MODIFIED. broadcast. Remote : SHARED -> INVALID
+

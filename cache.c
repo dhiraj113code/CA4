@@ -172,7 +172,10 @@ else
       mesi_cache_stat[pid].misses++;
 
       if(search_result == TAG_HIT_INVALID)
+      {
+         if(hitAt == NULL) { printf("error_info : hitAt is NULL\n"); exit(-1); }
          c_line = hitAt;
+      }
       else //Creating the cache_line to be inserted
          c_line = allocateCL(tag);
  
@@ -191,9 +194,16 @@ else
          {
             mesi_cache_stat[pid].replacements++;
 
-            //How to do eviction depending on the state. What is the dirty in mesi?
+            //While evicting, copy back to memory if the block is in MODIFIED state
             if(mesi_cache[pid].LRU_tail[index]->state == MODIFIED_STATE)
+            {
+               if(debug) fprintf(cacheLog, "Evicting MODIFIED block\n");
                mesi_cache_stat[pid].copies_back += cache_block_size/WORD_SIZE;
+            }
+            else
+            {
+               //if(debug) fprintf(cacheLog, "Evicting INVALID or EXCLUSIVE or SHARED block\n");
+            }
 
             delete(&mesi_cache[pid].LRU_head[index], &mesi_cache[pid].LRU_tail[index], mesi_cache[pid].LRU_tail[index]);
             insert(&mesi_cache[pid].LRU_head[index], &mesi_cache[pid].LRU_tail[index], c_line);
@@ -201,8 +211,8 @@ else
       }
       else if(search_result == TAG_HIT_INVALID)
       {
-         delete(&mesi_cache[pid].LRU_head[index], &mesi_cache[pid].LRU_tail[index], hitAt);
-         insert(&mesi_cache[pid].LRU_head[index], &mesi_cache[pid].LRU_tail[index], hitAt);
+         delete(&mesi_cache[pid].LRU_head[index], &mesi_cache[pid].LRU_tail[index], c_line);
+         insert(&mesi_cache[pid].LRU_head[index], &mesi_cache[pid].LRU_tail[index], c_line);
          
       }
       else { printf("error_info : search function returning an unknown state\n"); exit(-1);}
@@ -212,10 +222,11 @@ else
       //LRU Implementation on a hit
       delete(&mesi_cache[pid].LRU_head[index], &mesi_cache[pid].LRU_tail[index], hitAt);
       insert(&mesi_cache[pid].LRU_head[index], &mesi_cache[pid].LRU_tail[index], hitAt);
+
       if(request_type == READ_REQUEST)
       {
          if(debug) fprintf(cacheLog, "Is a READ_HIT\n");
-         mesiST_Local(hitAt, READ_HIT); //Stay in the same state. *REDUNDANT*
+         //mesiST_Local(hitAt, READ_HIT); //Stay in the same state. *REDUNDANT*
       }
       else if(request_type == WRITE_REQUEST)
       {
@@ -229,7 +240,7 @@ else
                BroadcastnSetState(request_type, tag, index, pid, hitAt, TRUE); //Broadcast to invalidate other cache blocks
                break;
             case MODIFIED_STATE:
-               mesiST_Local(hitAt, WRITE_HIT); //Stay in modified state. *REDUNDANT*
+               //mesiST_Local(hitAt, WRITE_HIT); //Stay in modified state. *REDUNDANT*
                if(debug) fprintf(cacheLog, "Is a WRITE_HIT\n");
                break;
             default:
@@ -237,6 +248,7 @@ else
                break;
          }
       }
+      else { printf("error_info : unknown request_type\n"); exit(-1);}
    }
    else { printf("error_info : search function returning an unknow state\n"); exit(-1);}
 }
@@ -334,6 +346,7 @@ void print_stats()
   int total_accesses = 0;
   int total_misses = 0;
   int total_replacements = 0;
+  int fetches_into_cache;
 
   printf("*** CACHE STATISTICS ***\n");
 
@@ -351,6 +364,7 @@ void print_stats()
   printf("  TRAFFIC\n");
   for (i = 0; i < num_core; i++) {
     demand_fetches += mesi_cache_stat[i].demand_fetches;
+    fetches_into_cache += mesi_cache_stat[i].fetches_into_cache;
     copies_back += mesi_cache_stat[i].copies_back;
     broadcasts += mesi_cache_stat[i].broadcasts;
     read_requests += mesi_cache_stat[i].read_requests;
@@ -368,6 +382,7 @@ void print_stats()
      printf("  write requests:       %d\n", write_requests);
   }
   printf("  demand fetch (words): %d\n", demand_fetches);
+  if(MORE_STATS)  printf("  fetches into cache(words): %d\n", fetches_into_cache);
   /* number of broadcasts */
   printf("  broadcasts:           %d\n", broadcasts);
   printf("  copies back (words):  %d\n", copies_back);
@@ -625,12 +640,14 @@ void BroadcastnSetState(unsigned request_type, unsigned tag, unsigned index, uns
 
       if(BroadcastnSearch(tag, index, REMOTE_READ_MISS, pid)) //If data to be read present in other core caches
       {
+         mesi_cache_stat[pid].fetches_into_cache += cache_block_size/WORD_SIZE;
          mesiST_Local(c_line, READ_MISS_FROM_BUS);
          if(debug) fprintf(cacheLog, "Is a READ_MISS got FROM_BUS\n");
       }
       else
       {
          mesi_cache_stat[pid].demand_fetches += cache_block_size/WORD_SIZE; //Else do a Memory fetch
+         mesi_cache_stat[pid].fetches_into_cache += cache_block_size/WORD_SIZE; 
          mesiST_Local(c_line, READ_MISS_FROM_MEMORY);
          if(debug) fprintf(cacheLog, "Is a READ_MISS got FROM_MEMORY\n");
       }
@@ -647,12 +664,14 @@ void BroadcastnSetState(unsigned request_type, unsigned tag, unsigned index, uns
       {
          if(BroadcastnSearch(tag, index, REMOTE_WRITE_MISS, pid))
          {
+            mesi_cache_stat[pid].fetches_into_cache += cache_block_size/WORD_SIZE;
             mesiST_Local(c_line, WRITE_MISS_FROM_BUS);
             if(debug) fprintf(cacheLog, "Is a WRITE_MISS_FROM_BUS\n");
          }
          else
          {
             mesi_cache_stat[pid].demand_fetches += cache_block_size/WORD_SIZE; //Else do a Memory fetch
+            mesi_cache_stat[pid].fetches_into_cache += cache_block_size/WORD_SIZE;
             mesiST_Local(c_line, WRITE_MISS_FROM_MEMORY);
             if(debug) fprintf(cacheLog, "Is a WRITE_MISS_FROM_MEMORY\n");
          }
@@ -705,6 +724,7 @@ void PrintLiveStats()
 {
 int i;
 int total_accesses = 0, total_misses = 0, total_replacements = 0, total_demand_fetches = 0, total_copies_back = 0, total_broadcasts = 0;
+int total_fetches_into_cache = 0;
 fprintf(cacheLog, "**************************************************************************************************************************\n");
 for (i = 0; i < num_core; i++)
 {
@@ -712,6 +732,7 @@ for (i = 0; i < num_core; i++)
     total_misses += mesi_cache_stat[i].misses;
     total_replacements += mesi_cache_stat[i].replacements;
     total_demand_fetches += mesi_cache_stat[i].demand_fetches;
+    total_fetches_into_cache += mesi_cache_stat[i].fetches_into_cache;
     total_copies_back += mesi_cache_stat[i].copies_back;
     total_broadcasts += mesi_cache_stat[i].broadcasts;
  
@@ -721,6 +742,7 @@ for (i = 0; i < num_core; i++)
     fprintf(cacheLog, "m=%d,", mesi_cache_stat[i].misses);
     fprintf(cacheLog, "r=%d,", mesi_cache_stat[i].replacements);
     fprintf(cacheLog, "d=%d,", mesi_cache_stat[i].demand_fetches);
+    fprintf(cacheLog, "f=%d,", mesi_cache_stat[i].fetches_into_cache);
     fprintf(cacheLog, "b=%d,", mesi_cache_stat[i].broadcasts);
     fprintf(cacheLog, "c=%d", mesi_cache_stat[i].copies_back);
     fprintf(cacheLog, ") ");
@@ -732,6 +754,7 @@ fprintf(cacheLog, "a=%d,", total_accesses);
 fprintf(cacheLog, "m=%d,", total_misses);
 fprintf(cacheLog, "r=%d,", total_replacements);
 fprintf(cacheLog, "d=%d,", total_demand_fetches);
+fprintf(cacheLog, "f=%d,", total_fetches_into_cache);
 fprintf(cacheLog, "b=%d,", total_broadcasts);
 fprintf(cacheLog, "c=%d", total_copies_back);
 fprintf(cacheLog, ") ");

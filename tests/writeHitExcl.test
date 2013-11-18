@@ -1,0 +1,4 @@
+0 0 bcd10  #Load 
+0 1 bcd15  #Write #EXCLUSIVE -> MODIFIED
+0 1 bcd12  #Write #MODIFIED -> MODIFIED  #No Broadcast.
+ 

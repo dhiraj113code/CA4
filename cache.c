@@ -54,6 +54,12 @@ void set_cache_param(param, value)
 /************************************************************/
 void init_cache()
 {
+  if(debug)
+  {
+     cacheLog = fopen("cache.log", "w");
+     if(cacheLog == NULL) {printf("error : Unable to create cache.log file\n"); exit(-1);}
+  }
+
   /* initialize the cache, and cache statistics data structures */
 
   //Initialize the caches - depending on the number of cores present
@@ -65,6 +71,13 @@ void init_cache()
   block_offset = LOG2(cache_block_size);
   mask_size = LOG2(n_sets) + block_offset;
   mask = (1<<mask_size) - 1;
+
+  if(debug)
+  {
+      fprintf(cacheLog, "**************************************************************************************************************************\n");
+      fprintf(cacheLog, "Input params: cache_size = %d\nblock_size = %d\nn_blocks = %d\nassociativity = %d\nn_sets = %d\nblock_offset = %d\nmask_size = %d\nmask = %d\n", cache_usize, cache_block_size, n_blocks, cache_assoc, n_sets, block_offset, mask_size, mask);
+      fprintf(cacheLog, "**************************************************************************************************************************\n");
+  }
 
   for(i = 0; i < num_core; i++)
   {
@@ -112,12 +125,6 @@ void init_cache()
         mesi_cache[i].LRU_head[j] = (Pcache_line)NULL;
         mesi_cache[i].LRU_tail[j] = (Pcache_line)NULL;
      }
-  }
-
-  if(debug)
-  {
-     cacheLog = fopen("cache.log", "w");
-     if(cacheLog == NULL) {printf("error : Unable to create cache.log file\n"); exit(-1);}
   }
 }
 /************************************************************/
@@ -700,7 +707,7 @@ for (i = 0; i < num_core; i++)
     fprintf(cacheLog, "C%d: ", i);
     fprintf(cacheLog, "a=%d,", mesi_cache_stat[i].accesses);
     fprintf(cacheLog, "m=%d,", mesi_cache_stat[i].misses);
-    fprintf(cacheLog, "r= %d,", mesi_cache_stat[i].replacements);
+    fprintf(cacheLog, "r=%d,", mesi_cache_stat[i].replacements);
     fprintf(cacheLog, "d=%d,", mesi_cache_stat[i].demand_fetches);
     fprintf(cacheLog, "b=%d,", mesi_cache_stat[i].broadcasts);
     fprintf(cacheLog, "c=%d", mesi_cache_stat[i].copies_back);

@@ -48,7 +48,8 @@
 #define TAG_HIT_VALID 1
 #define TAG_HIT_INVALID 2
 
-#define DEFAULT_DEBUG FALSE 
+#define DEFAULT_DEBUG FALSE
+#define MORE_STATS TRUE 
 
 /* structure definitions */
 typedef struct cache_line_ {

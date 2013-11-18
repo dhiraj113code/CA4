@@ -331,6 +331,9 @@ void print_stats()
   int broadcasts = 0;
   int read_requests = 0;
   int write_requests = 0;
+  int total_accesses = 0;
+  int total_misses = 0;
+  int total_replacements = 0;
 
   printf("*** CACHE STATISTICS ***\n");
 
@@ -352,13 +355,22 @@ void print_stats()
     broadcasts += mesi_cache_stat[i].broadcasts;
     read_requests += mesi_cache_stat[i].read_requests;
     write_requests += mesi_cache_stat[i].write_requests;
+    total_accesses += mesi_cache_stat[i].accesses;
+    total_misses += mesi_cache_stat[i].misses;
+    total_replacements += mesi_cache_stat[i].replacements;
+  }
+  if(MORE_STATS)
+  {
+     printf("  accesses =            %d\n", total_accesses);
+     printf("  misses =              %d\n", total_misses);
+     printf("  replacements =        %d\n", total_replacements);
+     printf("  read requests:        %d\n", read_requests);
+     printf("  write requests:       %d\n", write_requests);
   }
   printf("  demand fetch (words): %d\n", demand_fetches);
   /* number of broadcasts */
   printf("  broadcasts:           %d\n", broadcasts);
   printf("  copies back (words):  %d\n", copies_back);
-  printf("  read requests:        %d\n", read_requests);
-  printf("  write requests:       %d\n", write_requests);
 }
 /************************************************************/
 

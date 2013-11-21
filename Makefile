@@ -15,3 +15,4 @@ cache.o:  cache.c cache.h
 
 clean:
 	rm *.o sim
+

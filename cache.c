@@ -373,7 +373,7 @@ void print_stats()
     total_misses += mesi_cache_stat[i].misses;
     total_replacements += mesi_cache_stat[i].replacements;
   }
-  if(MORE_STATS)
+  if(debug && MORE_STATS) //Aggregate stats
   {
      printf("  accesses =            %d\n", total_accesses);
      printf("  misses =              %d\n", total_misses);
